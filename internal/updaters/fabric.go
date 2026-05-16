@@ -33,17 +33,28 @@ const (
 	DOWNLOAD_FILENAME string = "fabric-server-%s-%s-%s.jar"
 )
 
+// FabricUpdater handles downloading and updating Fabric Minecraft server installations.
+// It interacts with the Fabric Meta API to fetch version information and download
+// the appropriate server loader jar.
 type FabricUpdater struct {
+	// versions contains the available version information fetched from the Fabric API.
 	versions types.Versions
-	options  types.Options
+	// options contains the configuration for the updater.
+	options types.Options
 
-	gameVersion      *string
-	loaderVersion    *string
+	// gameVersion is the selected Minecraft game version (e.g. "1.21.4").
+	gameVersion *string
+	// loaderVersion is the selected Fabric loader version (e.g. "0.16.9").
+	loaderVersion *string
+	// installerVersion is the selected Fabric installer version (e.g. "1.1.1").
 	installerVersion *string
 
+	// client is the HTTP client used for API requests.
 	client http.Client
 }
 
+// NewFabricUpdater creates a new FabricUpdater configured with the provided options.
+// If options is nil, a default empty Options struct will be used.
 func NewFabricUpdater(options *types.Options) Updater {
 	if options == nil {
 		options = &types.Options{}
@@ -75,6 +86,9 @@ func NewFabricUpdater(options *types.Options) Updater {
 	}
 }
 
+// GetVersions fetches available Fabric versions from the Fabric Meta API.
+// It populates the internal versions field with game, loader, installer,
+// mapping, and intermediary version information.
 func (u *FabricUpdater) GetVersions() error {
 	req, err := http.NewRequest(http.MethodGet, API_URL, nil)
 	if err != nil {
@@ -126,6 +140,10 @@ func (u *FabricUpdater) GetVersions() error {
 	return nil
 }
 
+// GetLatest selects the latest available versions for game, loader, and installer.
+// It requires that GetVersions() (and optionally FilterVersions()) has been called first.
+// The selected versions are stored in the updater's gameVersion, loaderVersion,
+// and installerVersion fields.
 func (u *FabricUpdater) GetLatest() error {
 	if u.versions.Games == nil {
 		return errors.New("game versions are empty")
@@ -166,6 +184,8 @@ func (u *FabricUpdater) GetLatest() error {
 	return nil
 }
 
+// FilterVersions removes unstable versions from the available versions list.
+// Whether unstable versions are kept depends on the AllowUnstable option.
 func (u *FabricUpdater) FilterVersions() error {
 	if u.versions.Games == nil {
 		return errors.New("game versions are empty")
@@ -201,16 +221,21 @@ func (u *FabricUpdater) FilterVersions() error {
 	})
 
 	u.versions.Loaders = slices.DeleteFunc(u.versions.Loaders, func(l types.Loader) bool {
-		return l.Stable && !u.options.AllowUnstable
+		return !l.Stable && !u.options.AllowUnstable
 	})
 
 	u.versions.Installers = slices.DeleteFunc(u.versions.Installers, func(i types.Installer) bool {
-		return i.Stable && !u.options.AllowUnstable
+		return !i.Stable && !u.options.AllowUnstable
 	})
 
 	return nil
 }
 
+// Download initiates the download of the Fabric server jar for the selected
+// game, loader, and installer versions. The file is saved to the configured
+// download directory with a filename indicating the version combination.
+// It returns an error if no versions are selected or if the selected versions
+// are invalid.
 func (u *FabricUpdater) Download() error {
 	if u.gameVersion == nil {
 		return errors.New("no game version set")
@@ -276,6 +301,13 @@ func (u *FabricUpdater) Download() error {
 	return nil
 }
 
+// Migrate handles the transition from the existing server installation to the
+// newly downloaded server jar. It performs the following steps:
+//   - Compares SHA256 hashes of the existing and new server jars.
+//   - If identical, removes the downloaded jar and returns early.
+//   - Creates a timestamped backup directory under "migrated_versions/".
+//   - Moves the existing server.jar and mods/ folder to the backup directory.
+//   - Renames the new server jar to server.jar and creates a fresh mods/ folder.
 func (u *FabricUpdater) Migrate() error {
 	existingServerFilePath := filepath.Join(u.options.DownloadDirectory, "server.jar")
 	newServerFilePath := filepath.Join(u.options.DownloadDirectory, fmt.Sprintf(DOWNLOAD_FILENAME, *u.gameVersion, *u.loaderVersion, *u.installerVersion))
@@ -362,7 +394,9 @@ func (u *FabricUpdater) Migrate() error {
 	return nil
 }
 
-// MISC FUNCTIONS - NOT USED IN ANY STRUCTS
+// compareVersions compares two semantic version strings using hashicorp/go-version.
+// It returns -1 if a < b, 1 if a >= b. If parsing fails, it returns a fallback
+// value (-1 if a fails to parse, 1 if b fails to parse).
 func compareVersions(a, b string) int {
 	aVersion, err := version.NewVersion(a)
 	if err != nil {
@@ -381,6 +415,9 @@ func compareVersions(a, b string) int {
 	}
 }
 
+// getFileHash computes the SHA256 hash of the given file's contents.
+// It returns a pointer to the hex-encoded hash string, or an error if
+// reading the file fails.
 func getFileHash(f *os.File) (*string, error) {
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
