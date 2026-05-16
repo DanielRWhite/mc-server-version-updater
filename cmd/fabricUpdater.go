@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/DanielRWhite/fabric-mc-server-updater/internal/types"
 	"github.com/DanielRWhite/fabric-mc-server-updater/internal/updaters"
@@ -17,6 +18,14 @@ func main() {
 	options := types.Options{}
 	if directoryFlag != nil {
 		options.DownloadDirectory = *directoryFlag
+	} else {
+		// If this option isn't set, try to get the current working directory, if not default to a temp dir
+		wd, err := os.Getwd()
+		if err != nil {
+			options.DownloadDirectory = os.TempDir()
+		}
+
+		options.DownloadDirectory = wd
 	}
 
 	if serverFileName != nil {
