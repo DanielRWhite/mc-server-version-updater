@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/DanielRWhite/fabric-mc-server-updater/internal/types"
@@ -35,6 +36,10 @@ func main() {
 	if allowUnstable != nil {
 		options.AllowUnstable = *allowUnstable
 	}
+
+	fmt.Printf("[Updater] Downloading to: %s\n", options.DownloadDirectory)
+	fmt.Printf("[Updater] Server Filename: %s\n", options.ServerFileName)
+	fmt.Printf("[Updater] Allow Unstable: %s\n", options.AllowUnstable)
 
 	fabricUpdater := updaters.NewFabricUpdater(&options)
 

@@ -145,23 +145,23 @@ func (u *FabricUpdater) GetVersions() error {
 // The selected versions are stored in the updater's gameVersion, loaderVersion,
 // and installerVersion fields.
 func (u *FabricUpdater) GetLatest() error {
-	if u.versions.Games == nil {
+	if u.versions.Games == nil || len(u.versions.Games) == 0 {
 		return errors.New("game versions are empty")
 	}
 
-	if u.versions.Mappings == nil {
+	if u.versions.Mappings == nil || len(u.versions.Mappings) == 0 {
 		return errors.New("mapping verisons are empty")
 	}
 
-	if u.versions.Intermediaries == nil {
+	if u.versions.Intermediaries == nil || len(u.versions.Intermediaries) == 0 {
 		return errors.New("intermediary versions are empty")
 	}
 
-	if u.versions.Loaders == nil {
+	if u.versions.Loaders == nil || len(u.versions.Loaders) == 0 {
 		return errors.New("loader versions are empty")
 	}
 
-	if u.versions.Installers == nil {
+	if u.versions.Installers == nil || len(u.versions.Installers) == 0 {
 		return errors.New("installer versions are empty")
 	}
 
@@ -224,9 +224,7 @@ func (u *FabricUpdater) FilterVersions() error {
 		return !l.Stable && !u.options.AllowUnstable
 	})
 
-	u.versions.Installers = slices.DeleteFunc(u.versions.Installers, func(i types.Installer) bool {
-		return !i.Stable && !u.options.AllowUnstable
-	})
+	// Don't filter installers since none of them for fabric are stable?
 
 	return nil
 }
