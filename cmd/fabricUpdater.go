@@ -39,7 +39,7 @@ func main() {
 
 	fmt.Printf("[Updater] Downloading to: %s\n", options.DownloadDirectory)
 	fmt.Printf("[Updater] Server Filename: %s\n", options.ServerFileName)
-	fmt.Printf("[Updater] Allow Unstable: %s\n", options.AllowUnstable)
+	fmt.Printf("[Updater] Allow Unstable: %t\n", options.AllowUnstable)
 
 	fabricUpdater := updaters.NewFabricUpdater(&options)
 

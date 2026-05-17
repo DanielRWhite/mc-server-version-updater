@@ -37,17 +37,17 @@ const (
 // It interacts with the Fabric Meta API to fetch version information and download
 // the appropriate server loader jar.
 type FabricUpdater struct {
-	// versions contains the available version information fetched from the Fabric API.
-	versions types.Versions
+	// Versions contains the available version information fetched from the Fabric API.
+	Versions types.Versions
 	// options contains the configuration for the updater.
 	options types.Options
 
-	// gameVersion is the selected Minecraft game version (e.g. "1.21.4").
-	gameVersion *string
-	// loaderVersion is the selected Fabric loader version (e.g. "0.16.9").
-	loaderVersion *string
-	// installerVersion is the selected Fabric installer version (e.g. "1.1.1").
-	installerVersion *string
+	// GameVersion is the selected Minecraft game version (e.g. "1.21.4").
+	GameVersion *string
+	// LoaderVersion is the selected Fabric loader version (e.g. "0.16.9").
+	LoaderVersion *string
+	// InstallerVersion is the selected Fabric installer version (e.g. "1.1.1").
+	InstallerVersion *string
 
 	// client is the HTTP client used for API requests.
 	client http.Client
@@ -62,7 +62,7 @@ func NewFabricUpdater(options *types.Options) Updater {
 
 	return &FabricUpdater{
 		options:  *options,
-		versions: types.Versions{},
+		Versions: types.Versions{},
 		client: http.Client{
 			Transport: &http.Transport{
 				TLSHandshakeTimeout: 30 * time.Second,
@@ -109,15 +109,14 @@ func (u *FabricUpdater) GetVersions() error {
 
 	// Actually perform request now
 	resp, err := u.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed making request with DefaultClient: %v", err)
+	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			fmt.Printf("Error closing response body: %v", err)
 		}
 	}()
-
-	if err != nil {
-		return fmt.Errorf("failed making request with DefaultClient: %v", err)
-	}
 
 	if resp.StatusCode != 200 {
 		return errors.New("Got non-200 status code response")
@@ -132,7 +131,7 @@ func (u *FabricUpdater) GetVersions() error {
 		return fmt.Errorf("failed reading resp body: %v", err)
 	}
 
-	if err := json.Unmarshal(b, &u.versions); err != nil {
+	if err := json.Unmarshal(b, &u.Versions); err != nil {
 		fmt.Printf("%s", string(b))
 		return fmt.Errorf("Failed to unmarshal response body: %s", err)
 	}
@@ -145,41 +144,41 @@ func (u *FabricUpdater) GetVersions() error {
 // The selected versions are stored in the updater's gameVersion, loaderVersion,
 // and installerVersion fields.
 func (u *FabricUpdater) GetLatest() error {
-	if u.versions.Games == nil || len(u.versions.Games) == 0 {
+	if len(u.Versions.Games) == 0 {
 		return errors.New("game versions are empty")
 	}
 
-	if u.versions.Mappings == nil || len(u.versions.Mappings) == 0 {
+	if len(u.Versions.Mappings) == 0 {
 		return errors.New("mapping verisons are empty")
 	}
 
-	if u.versions.Intermediaries == nil || len(u.versions.Intermediaries) == 0 {
+	if len(u.Versions.Intermediaries) == 0 {
 		return errors.New("intermediary versions are empty")
 	}
 
-	if u.versions.Loaders == nil || len(u.versions.Loaders) == 0 {
+	if len(u.Versions.Loaders) == 0 {
 		return errors.New("loader versions are empty")
 	}
 
-	if u.versions.Installers == nil || len(u.versions.Installers) == 0 {
+	if len(u.Versions.Installers) == 0 {
 		return errors.New("installer versions are empty")
 	}
 
-	gameVersion := slices.MaxFunc(u.versions.Games, func(a, b types.Game) int {
+	gameVersion := slices.MaxFunc(u.Versions.Games, func(a, b types.Game) int {
 		return compareVersions(a.Version, b.Version)
 	})
 
-	installerVersion := slices.MaxFunc(u.versions.Installers, func(a, b types.Installer) int {
+	installerVersion := slices.MaxFunc(u.Versions.Installers, func(a, b types.Installer) int {
 		return compareVersions(a.Version, b.Version)
 	})
 
-	loaderVersion := slices.MaxFunc(u.versions.Loaders, func(a, b types.Loader) int {
+	loaderVersion := slices.MaxFunc(u.Versions.Loaders, func(a, b types.Loader) int {
 		return compareVersions(a.Version, b.Version)
 	})
 
-	u.gameVersion = &gameVersion.Version
-	u.installerVersion = &installerVersion.Version
-	u.loaderVersion = &loaderVersion.Version
+	u.GameVersion = &gameVersion.Version
+	u.InstallerVersion = &installerVersion.Version
+	u.LoaderVersion = &loaderVersion.Version
 
 	return nil
 }
@@ -187,44 +186,47 @@ func (u *FabricUpdater) GetLatest() error {
 // FilterVersions removes unstable versions from the available versions list.
 // Whether unstable versions are kept depends on the AllowUnstable option.
 func (u *FabricUpdater) FilterVersions() error {
-	if u.versions.Games == nil {
+	if u.Versions.Games == nil {
 		return errors.New("game versions are empty")
 	}
 
-	if u.versions.Mappings == nil {
+	if u.Versions.Mappings == nil {
 		return errors.New("mapping verisons are empty")
 	}
 
-	if u.versions.Intermediaries == nil {
+	if u.Versions.Intermediaries == nil {
 		return errors.New("intermediary versions are empty")
 	}
 
-	if u.versions.Loaders == nil {
+	if u.Versions.Loaders == nil {
 		return errors.New("loader versions are empty")
 	}
 
-	if u.versions.Installers == nil {
+	if u.Versions.Installers == nil {
 		return errors.New("installer versions are empty")
 	}
 
 	// Remove all unstable versions
-	u.versions.Games = slices.DeleteFunc(u.versions.Games, func(g types.Game) bool {
+	u.Versions.Games = slices.DeleteFunc(u.Versions.Games, func(g types.Game) bool {
 		return !g.Stable && !u.options.AllowUnstable
 	})
 
-	u.versions.Mappings = slices.DeleteFunc(u.versions.Mappings, func(m types.Mapping) bool {
+	u.Versions.Mappings = slices.DeleteFunc(u.Versions.Mappings, func(m types.Mapping) bool {
 		return !m.Stable && !u.options.AllowUnstable
 	})
 
-	u.versions.Intermediaries = slices.DeleteFunc(u.versions.Intermediaries, func(i types.Intermediary) bool {
+	u.Versions.Intermediaries = slices.DeleteFunc(u.Versions.Intermediaries, func(i types.Intermediary) bool {
 		return !i.Stable && !u.options.AllowUnstable
 	})
 
-	u.versions.Loaders = slices.DeleteFunc(u.versions.Loaders, func(l types.Loader) bool {
+	u.Versions.Loaders = slices.DeleteFunc(u.Versions.Loaders, func(l types.Loader) bool {
 		return !l.Stable && !u.options.AllowUnstable
 	})
 
 	// Don't filter installers since none of them for fabric are stable?
+	// u.Versions.Installers = slices.DeleteFunc(u.Versions.Installers, func(i types.Installer) bool {
+	// 	return !i.Stable && !u.options.AllowUnstable
+	// })
 
 	return nil
 }
@@ -235,37 +237,37 @@ func (u *FabricUpdater) FilterVersions() error {
 // It returns an error if no versions are selected or if the selected versions
 // are invalid.
 func (u *FabricUpdater) Download() error {
-	if u.gameVersion == nil {
+	if u.GameVersion == nil {
 		return errors.New("no game version set")
 	}
 
-	if u.loaderVersion == nil {
+	if u.LoaderVersion == nil {
 		return errors.New("no loader version set")
 	}
 
-	if u.installerVersion == nil {
+	if u.InstallerVersion == nil {
 		return errors.New("no installer version set")
 	}
 
-	if !slices.ContainsFunc(u.versions.Games, func(g types.Game) bool {
-		return g.Version == *u.gameVersion
+	if !slices.ContainsFunc(u.Versions.Games, func(g types.Game) bool {
+		return g.Version == *u.GameVersion
 	}) {
 		return errors.New("invalid game version selected")
 	}
 
-	if !slices.ContainsFunc(u.versions.Loaders, func(l types.Loader) bool {
-		return l.Version == *u.loaderVersion
+	if !slices.ContainsFunc(u.Versions.Loaders, func(l types.Loader) bool {
+		return l.Version == *u.LoaderVersion
 	}) {
 		return errors.New("invalid loader version selected")
 	}
 
-	if !slices.ContainsFunc(u.versions.Installers, func(i types.Installer) bool {
-		return i.Version == *u.installerVersion
+	if !slices.ContainsFunc(u.Versions.Installers, func(i types.Installer) bool {
+		return i.Version == *u.InstallerVersion
 	}) {
 		return errors.New("invalid installer version selected")
 	}
 
-	downloadURL := fmt.Sprintf(EXECUTABLE_URL, *u.gameVersion, *u.loaderVersion, *u.installerVersion)
+	downloadURL := fmt.Sprintf(EXECUTABLE_URL, *u.GameVersion, *u.LoaderVersion, *u.InstallerVersion)
 	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create download request: %v", err)
@@ -286,7 +288,7 @@ func (u *FabricUpdater) Download() error {
 	}()
 
 	// All is ok, create file on disk now
-	downloadFilename := fmt.Sprintf(DOWNLOAD_FILENAME, *u.gameVersion, *u.loaderVersion, *u.installerVersion)
+	downloadFilename := fmt.Sprintf(DOWNLOAD_FILENAME, *u.GameVersion, *u.LoaderVersion, *u.InstallerVersion)
 	serverFile, err := os.Create(filepath.Join(u.options.DownloadDirectory, downloadFilename))
 	if err != nil {
 		return fmt.Errorf("failed to create file on disk: %v", err)
@@ -308,7 +310,7 @@ func (u *FabricUpdater) Download() error {
 //   - Renames the new server jar to server.jar and creates a fresh mods/ folder.
 func (u *FabricUpdater) Migrate() error {
 	existingServerFilePath := filepath.Join(u.options.DownloadDirectory, "server.jar")
-	newServerFilePath := filepath.Join(u.options.DownloadDirectory, fmt.Sprintf(DOWNLOAD_FILENAME, *u.gameVersion, *u.loaderVersion, *u.installerVersion))
+	newServerFilePath := filepath.Join(u.options.DownloadDirectory, fmt.Sprintf(DOWNLOAD_FILENAME, *u.GameVersion, *u.LoaderVersion, *u.InstallerVersion))
 
 	// Get existing server file
 	existingFile, err := os.Open(existingServerFilePath)
@@ -317,34 +319,33 @@ func (u *FabricUpdater) Migrate() error {
 		fmt.Printf("Failed to open previous server.jar: %s", err)
 	}
 
-	defer func() {
-		if err := existingFile.Close(); err != nil {
-			fmt.Printf("failed to close existing server file")
-		}
-	}()
-
 	// Open new server file too, so that we can check it exists before migrating anything
 	newServerFile, err := os.Open(newServerFilePath)
 	if err != nil || newServerFile == nil {
+		if existingFile != nil {
+			existingFile.Close()
+		}
 		return fmt.Errorf("failed to open new server.jar file: %v", err)
 	}
-
-	defer func() {
-		if err := newServerFile.Close(); err != nil {
-			fmt.Printf("failed to close new server file")
-		}
-	}()
 
 	// Compare hash of both server files, if they are the same exit early and delete downloaded file :)
 	existingFileHash, err := getFileHash(existingFile)
 	if err != nil || existingFileHash == nil {
+		existingFile.Close()
+		newServerFile.Close()
 		return fmt.Errorf("failed to get existing server file hash: %v", err)
 	}
 
 	newFileHash, err := getFileHash(newServerFile)
 	if err != nil || newFileHash == nil {
+		existingFile.Close()
+		newServerFile.Close()
 		return fmt.Errorf("failed to get new server file hash: %v", err)
 	}
+
+	// Close files before any rename/remove operations (required on Windows).
+	existingFile.Close()
+	newServerFile.Close()
 
 	if *existingFileHash == *newFileHash {
 		fmt.Printf("Server version are the same, deleting downloaded one\n")
